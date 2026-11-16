@@ -1,0 +1,6 @@
+{
+  "name": "Sổ Tay Ghi Chú Cá Nhân",
+  "description": "Ứng dụng quản lý ghi chú cá nhân theo dự án và chủ đề, lưu trữ cục bộ trên trình duyệt.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

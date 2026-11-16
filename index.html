@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Sổ Tay Ghi Chú Cá Nhân</title>
+  <meta name="description" content="Ứng dụng quản lý ghi chú cá nhân theo dự án và chủ đề, lưu trữ cục bộ trên trình duyệt." />
+  <meta property="og:title" content="Sổ Tay Ghi Chú Cá Nhân" />
+  <meta property="og:description" content="Ứng dụng quản lý ghi chú cá nhân theo dự án và chủ đề, lưu trữ cục bộ trên trình duyệt." />
+  <meta property="og:type" content="website" />
+
+  <style>
+    /* ==========================================================================
+       1. BIẾN MÀU SẮC & THIẾT LẬP CƠ BẢN (Tối giản, dịu mắt, độ tương phản cao)
+       ========================================================================== */
+    :root {
+      --bg-canvas: #f7f6f2;          /* Nền tổng thể giấy ấm nhẹ (60%) */
+      --bg-surface: #ffffff;         /* Bề mặt thẻ và trình soạn thảo (30%) */
+      --bg-subtle: #efede7;          /* Bề mặt phụ / ô nhập liệu / hover */
+      --bg-active: #e7f0ed;          /* Trạng thái ghi chú đang được chọn */
+
+      --text-primary: #1c1b18;       /* Chữ chính (độ tương phản > 12:1) */
+      --text-secondary: #5e5a52;     /* Chữ phụ / đoạn trích */
+      --text-muted: #78736a;         /* Thời gian, thống kê */
+
+      --border-hairline: #e4e0d8;    /* Đường viền mảnh tách khối */
+      --border-active: #b6cfc7;      /* Viền mục đang chọn */
+
+      --accent: #1d5b4e;             /* Màu nhấn chính xanh rêu trầm (10%) */
+      --accent-hover: #15453b;       /* Màu nhấn khi di chuột */
+      --accent-contrast: #ffffff;    /* Chữ trên nền màu nhấn */
+
+      --danger: #b91c1c;             /* Màu cảnh báo xóa */
+      --danger-hover: #991b1b;
+      --danger-bg: #fef2f2;
+      --danger-border: #fecaca;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+
+      --shadow-sm: 0 1px 2px rgba(28, 27, 24, 0.05);
+      --shadow-modal: 0 18px 40px rgba(28, 27, 24, 0.16);
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+      --transition-fast: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+      --transition-panel: 220ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Tôn trọng cài đặt giảm chuyển động của người dùng */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+
+    /* Vòng focus rõ ràng cho khả năng truy cập bằng bàn phím */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    button,
+    input,
+    textarea {
+      font-family: inherit;
+      font-size: inherit;
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ==========================================================================
+       2. BỐ CỤC CHÍNH (Mobile 1 cột chuyển màn hình | >=768px 2 cột cố định)
+       ========================================================================== */
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      max-width: 1440px;
+      margin: 0 auto;
+      background-color: var(--bg-canvas);
+      overflow: hidden;
+    }
+
+    /* Thanh tiêu đề trên cùng: gọn nhẹ, đủ chỗ chạm, <= 15% chiều cao di động */
+    .app-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 16px;
+      padding-top: max(12px, env(safe-area-inset-top));
+      background-color: var(--bg-surface);
+      border-bottom: 1px solid var(--border-hairline);
+      z-index: 20;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Nút "+ Thêm ghi chú" nổi bật, kích thước chạm tối thiểu 44px */
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: var(--radius-sm);
+      background-color: var(--accent);
+      color: var(--accent-contrast);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+      transition: background-color var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--accent-hover);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.98);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 16px;
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-subtle);
+      color: var(--text-primary);
+      font-size: 0.9375rem;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background-color var(--transition-fast);
+    }
+
+    .btn-secondary:hover {
+      background-color: #e4e1d8;
+    }
+
+    .btn-danger-ghost {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 44px;
+      min-width: 44px;
+      padding: 0 14px;
+      border-radius: var(--radius-sm);
+      color: var(--danger);
+      background-color: transparent;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background-color var(--transition-fast);
+    }
+
+    .btn-danger-ghost:hover {
+      background-color: var(--danger-bg);
+    }
+
+    .btn-danger-solid {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: var(--radius-sm);
+      background-color: var(--danger);
+      color: #ffffff;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background-color var(--transition-fast);
+    }
+
+    .btn-danger-solid:hover {
+      background-color: var(--danger-hover);
+    }
+
+    /* Khu vực nội dung chính chứa 2 panel */
+    .workspace {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ==========================================================================
+       3. CỘT TRÁI: TÌM KIẾM, THỐNG KÊ & DANH SÁCH GHI CHÚ
+       ========================================================================== */
+    .sidebar-panel {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-canvas);
+      min-height: 0;
+    }
+
+    .search-section {
+      flex-shrink: 0;
+      padding: 14px 16px 12px;
+      background-color: var(--bg-canvas);
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--text-muted);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 44px 10px 42px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-hairline);
+      background-color: var(--bg-surface);
+      color: var(--text-primary);
+      font-size: 0.9375rem;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(29, 91, 78, 0.12);
+    }
+
+    .search-clear-btn {
+      position: absolute;
+      right: 4px;
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-sm);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      transition: background-color var(--transition-fast), color var(--transition-fast);
+    }
+
+    .search-clear-btn.is-visible {
+      display: flex;
+    }
+
+    .search-clear-btn:hover {
+      background-color: var(--bg-subtle);
+      color: var(--text-primary);
+    }
+
+    /* Thanh thống kê đơn giản (text thuần, không dùng pill badge) */
+    .stats-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 0 2px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .notes-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .note-card {
+      width: 100%;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 14px 16px;
+      min-height: 64px;
+      border-radius: var(--radius-md);
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .note-card:hover {
+      background-color: #fcfcfa;
+      border-color: #d4cfc4;
+    }
+
+    .note-card:active {
+      transform: scale(0.99);
+    }
+
+    .note-card.is-active {
+      background-color: var(--bg-active);
+      border-color: var(--border-active);
+    }
+
+    .note-card-title {
+      margin: 0;
+      font-size: 0.96875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    .note-card-excerpt {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    .note-card-excerpt.is-empty {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .note-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Trạng thái danh sách trống */
+    .list-empty-state {
+      margin: auto 0;
+      padding: 36px 20px;
+      text-align: center;
+      color: var(--text-secondary);
+    }
+
+    .list-empty-title {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .list-empty-desc {
+      margin: 0 0 18px;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ==========================================================================
+       4. CỘT PHẢI / PANEL TRƯỢT DI ĐỘNG: CHI TIẾT & CHỈNH SỬA GHI CHÚ
+       ========================================================================== */
+    .detail-panel {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg-surface);
+      transform: translateX(100%);
+      transition: transform var(--transition-panel);
+      min-height: 0;
+    }
+
+    .detail-panel.is-open-mobile {
+      transform: translateX(0);
+    }
+
+    .editor-view {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+    }
+
+    /* Thanh công cụ bên trong màn hình chi tiết */
+    .detail-toolbar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-hairline);
+      background-color: var(--bg-surface);
+    }
+
+    .detail-toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .detail-toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .btn-back-mobile {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 44px;
+      padding: 0 10px 0 4px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+    }
+
+    .btn-back-mobile:hover {
+      background-color: var(--bg-subtle);
+    }
+
+    .save-status-text {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Nội dung form chỉnh sửa ghi chú */
+    .editor-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px 32px;
+      display: flex;
+      flex-direction: column;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .editor-container {
+      width: 100%;
+      max-width: 72ch;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      gap: 16px;
+    }
+
+    .editor-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-group-grow {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .field-label {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .char-counter {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .char-counter.is-limit {
+      color: var(--danger);
+      font-weight: 600;
+    }
+
+    .title-input {
+      width: 100%;
+      min-height: 48px;
+      padding: 10px 14px;
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-canvas);
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.35;
+      color: var(--text-primary);
+      transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    }
+
+    .title-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      background-color: var(--bg-surface);
+    }
+
+    .title-input.has-error {
+      border-color: var(--danger);
+      background-color: var(--danger-bg);
+    }
+
+    .field-error {
+      margin: 0;
+      font-size: 0.8125rem;
+      color: var(--danger);
+      min-height: 1.2em;
+    }
+
+    .content-textarea {
+      width: 100%;
+      flex: 1;
+      min-height: 260px;
+      padding: 14px;
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-sm);
+      background-color: var(--bg-canvas);
+      font-size: 1rem;
+      line-height: 1.65;
+      color: var(--text-primary);
+      resize: vertical;
+      transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    }
+
+    .content-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      background-color: var(--bg-surface);
+    }
+
+    .editor-footer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      padding-top: 8px;
+    }
+
+    /* Màn hình chờ khi chưa chọn ghi chú nào (chỉ hiển thị trên >=768px) */
+    .detail-placeholder {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px;
+      color: var(--text-secondary);
+    }
+
+    .detail-placeholder-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: var(--radius-md);
+      background-color: var(--bg-subtle);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+
+    .detail-placeholder h2 {
+      margin: 0 0 8px;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .detail-placeholder p {
+      margin: 0 0 20px;
+      max-width: 38ch;
+      font-size: 0.9375rem;
+      color: var(--text-muted);
+    }
+
+    /* ==========================================================================
+       5. BỐ CỤC MÀN HÌNH RỘNG (>= 768px): 2 CỘT SONG SONG
+       ========================================================================== */
+    @media (min-width: 768px) {
+      .app-header {
+        padding: 14px 24px;
+      }
+
+      .brand-title {
+        font-size: 1.25rem;
+      }
+
+      .sidebar-panel {
+        width: 360px;
+        flex-shrink: 0;
+        border-right: 1px solid var(--border-hairline);
+      }
+
+      .search-section {
+        padding: 16px 20px 12px;
+      }
+
+      .notes-list {
+        padding: 12px 20px 24px;
+      }
+
+      .detail-panel {
+        position: static;
+        flex: 1;
+        transform: none;
+        z-index: 1;
+      }
+
+      .btn-back-mobile {
+        display: none;
+      }
+
+      .detail-toolbar {
+        padding: 12px 28px;
+      }
+
+      .editor-scroll {
+        padding: 28px 32px 40px;
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .sidebar-panel {
+        width: 400px;
+      }
+    }
+
+    /* ==========================================================================
+       6. HỘP THOẠI XÁC NHẬN XÓA & THÔNG BÁO NHANH (TOAST)
+       ========================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background-color: rgba(28, 27, 24, 0.45);
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-backdrop.is-open {
+      display: flex;
+    }
+
+    .modal-dialog {
+      width: 100%;
+      max-width: 420px;
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-hairline);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: var(--shadow-modal);
+    }
+
+    .modal-title {
+      margin: 0 0 8px;
+      font-size: 1.125rem;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      margin: 0 0 22px;
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+      word-break: break-word;
+    }
+
+    .modal-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: max(20px, env(safe-area-inset-bottom));
+      transform: translate(-50%, 16px);
+      z-index: 90;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      background-color: var(--text-primary);
+      color: #ffffff;
+      font-size: 0.875rem;
+      font-weight: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition-fast), transform var(--transition-fast);
+      white-space: nowrap;
+      box-shadow: var(--shadow-modal);
+    }
+
+    .toast.is-visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .is-hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Thanh đầu trang: Tên ứng dụng và nút Thêm ghi chú nổi bật -->
+    <header class="app-header">
+      <h1 class="brand-title">Sổ Tay Ghi Chú</h1>
+      <button type="button" id="btnAddNote" class="btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Thêm ghi chú</span>
+      </button>
+    </header>
+
+    <main class="workspace">
+      <!-- Cột trái: Ô tìm kiếm, thống kê và danh sách ghi chú -->
+      <section class="sidebar-panel" aria-label="Danh sách ghi chú">
+        <div class="search-section">
+          <div class="search-box">
+            <span class="search-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+            </span>
+            <input
+              type="search"
+              id="searchInput"
+              class="search-input"
+              placeholder="Tìm theo tiêu đề hoặc nội dung..."
+              aria-label="Tìm kiếm ghi chú"
+              autocomplete="off"
+            />
+            <button
+              type="button"
+              id="btnClearSearch"
+              class="search-clear-btn"
+              aria-label="Xóa từ khóa tìm kiếm"
+              title="Xóa tìm kiếm"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Thống kê số lượng ghi chú -->
+          <div class="stats-bar" aria-live="polite">
+            <span id="statsSummary" class="tabular-nums">0 ghi chú</span>
+            <span id="statsModeText">Lưu trên trình duyệt</span>
+          </div>
+        </div>
+
+        <div id="notesList" class="notes-list" role="list">
+          <!-- Danh sách ghi chú sẽ được dựng tự động bằng JavaScript -->
+        </div>
+      </section>
+
+      <!-- Cột phải (Desktop) / Màn hình trượt (Mobile): Chi tiết và chỉnh sửa -->
+      <section id="detailPanel" class="detail-panel" aria-label="Chi tiết ghi chú">
+        <!-- Trạng thái chờ khi chưa chọn ghi chú trên màn hình rộng -->
+        <div id="detailPlaceholder" class="detail-placeholder">
+          <div class="detail-placeholder-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <line x1="10" y1="9" x2="8" y2="9"></line>
+            </svg>
+          </div>
+          <h2>Chọn một ghi chú để xem hoặc chỉnh sửa</h2>
+          <p>Ghi chép ý tưởng, tài liệu dự án hoặc chủ đề cá nhân. Mọi dữ liệu đều được lưu an toàn ngay trên thiết bị của bạn.</p>
+          <button type="button" id="btnAddNoteEmpty" class="btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Tạo ghi chú mới</span>
+          </button>
+        </div>
+
+        <!-- Trình soạn thảo ghi chú -->
+        <div id="editorView" class="editor-view is-hidden">
+          <div class="detail-toolbar">
+            <div class="detail-toolbar-left">
+              <button type="button" id="btnBackMobile" class="btn-back-mobile" aria-label="Quay lại danh sách ghi chú">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                <span>Danh sách</span>
+              </button>
+              <span id="editorStatusText" class="save-status-text">Ghi chú mới</span>
+            </div>
+
+            <div class="detail-toolbar-right">
+              <button type="button" id="btnDeleteNote" class="btn-danger-ghost is-hidden" aria-label="Xóa ghi chú này">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                <span>Xóa</span>
+              </button>
+              <button type="button" id="btnSaveTop" class="btn-primary">
+                <span>Lưu ghi chú</span>
+              </button>
+            </div>
+          </div>
+
+          <form id="noteForm" class="editor-scroll" novalidate>
+            <div class="editor-container">
+              <div class="editor-meta-row">
+                <span id="noteModeLabel">Tạo ghi chú mới</span>
+                <span id="noteCreatedAtLabel" class="tabular-nums"></span>
+              </div>
+
+              <div class="field-group">
+                <div class="field-label-row">
+                  <label for="noteTitleInput" class="field-label">Tiêu đề (bắt buộc)</label>
+                  <span id="titleCharCounter" class="char-counter tabular-nums">0 / 100</span>
+                </div>
+                <input
+                  type="text"
+                  id="noteTitleInput"
+                  class="title-input"
+                  maxlength="100"
+                  placeholder="Nhập tiêu đề dự án hoặc chủ đề..."
+                  required
+                />
+                <p id="titleError" class="field-error" role="alert"></p>
+              </div>
+
+              <div class="field-group field-group-grow">
+                <div class="field-label-row">
+                  <label for="noteContentInput" class="field-label">Nội dung ghi chú</label>
+                </div>
+                <textarea
+                  id="noteContentInput"
+                  class="content-textarea"
+                  placeholder="Viết nội dung ghi chú tại đây (có thể để trống)..."
+                ></textarea>
+              </div>
+
+              <div class="editor-footer-actions">
+                <button type="button" id="btnCancelEdit" class="btn-secondary">Hủy</button>
+                <button type="submit" id="btnSaveBottom" class="btn-primary">Lưu ghi chú</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Hộp thoại xác nhận trước khi xóa ghi chú -->
+  <div id="deleteModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+    <div class="modal-dialog">
+      <h2 id="deleteModalTitle" class="modal-title">Xác nhận xóa ghi chú</h2>
+      <p id="deleteModalMessage" class="modal-body"></p>
+      <div class="modal-actions">
+        <button type="button" id="btnCancelDelete" class="btn-secondary">Hủy</button>
+        <button type="button" id="btnConfirmDelete" class="btn-danger-solid">Xóa ghi chú</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Thông báo phản hồi thao tác -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      /* ========================================================================
+         1. HẰNG SỐ VÀ TRẠNG THÁI ỨNG DỤNG
+         ======================================================================== */
+      const STORAGE_KEY = "personal_notes_manager_v1";
+      const MAX_TITLE_LENGTH = 100;
+
+      // Dữ liệu mẫu khởi tạo duy nhất trong lần đầu tiên mở ứng dụng
+      const DEFAULT_SAMPLE_NOTES = [
+        {
+          id: "note-sample-1",
+          title: "Dự án Website Cá nhân — Cấu trúc trang",
+          content:
+            "Các mục cần chuẩn bị:\n" +
+            "- Giới thiệu bản thân ngắn gọn, tập trung vào kỹ năng chính.\n" +
+            "- Danh sách 3 dự án tiêu biểu kèm mô tả bài toán và kết quả.\n" +
+            "- Thông tin liên hệ rõ ràng ở cuối trang.",
+          createdAt: "2026-11-12T09:15:00.000Z"
+        },
+        {
+          id: "note-sample-2",
+          title: "Ghi chép Đọc sách — Nghệ thuật tập trung",
+          content:
+            "Tóm tắt ý chính:\n" +
+            "1. Chia nhỏ công việc thành các khối thời gian yên tĩnh.\n" +
+            "2. Giảm thiểu thông báo không cần thiết khi đang nghiên cứu sâu.\n" +
+            "3. Viết lại những gì vừa học bằng ngôn từ của chính mình.",
+          createdAt: "2026-11-13T14:30:00.000Z"
+        },
+        {
+          id: "note-sample-3",
+          title: "Chủ đề Học tập — JavaScript thuần & DOM",
+          content:
+            "Danh sách kiến thức ôn tập:\n" +
+            "- Thao tác DOM an toàn với textContent và createElement.\n" +
+            "- Lưu trữ dữ liệu cục bộ bằng localStorage và xử lý JSON.\n" +
+            "- Thiết kế giao diện đáp ứng tốt trên cả điện thoại lẫn máy tính.",
+          createdAt: "2026-11-14T08:45:00.000Z"
+        }
+      ];
+
+      // Trạng thái hiện tại trong bộ nhớ
+      const state = {
+        notes: [],
+        searchQuery: "",
+        activeNoteId: null,     // ID ghi chú đang mở (null nếu đang tạo mới hoặc chưa chọn)
+        editorMode: "idle",     // "idle" | "create" | "edit"
+        isDirty: false,         // Đánh dấu người dùng có chỉnh sửa chưa lưu
+        pendingDeleteId: null
+      };
+
+      /* ========================================================================
+         2. THAM CHIẾU PHẦN TỬ DOM
+         ======================================================================== */
+      const dom = {
+        btnAddNote: document.getElementById("btnAddNote"),
+        btnAddNoteEmpty: document.getElementById("btnAddNoteEmpty"),
+        searchInput: document.getElementById("searchInput"),
+        btnClearSearch: document.getElementById("btnClearSearch"),
+        statsSummary: document.getElementById("statsSummary"),
+        notesList: document.getElementById("notesList"),
+
+        detailPanel: document.getElementById("detailPanel"),
+        detailPlaceholder: document.getElementById("detailPlaceholder"),
+        editorView: document.getElementById("editorView"),
+        btnBackMobile: document.getElementById("btnBackMobile"),
+        editorStatusText: document.getElementById("editorStatusText"),
+        btnDeleteNote: document.getElementById("btnDeleteNote"),
+        btnSaveTop: document.getElementById("btnSaveTop"),
+
+        noteForm: document.getElementById("noteForm"),
+        noteModeLabel: document.getElementById("noteModeLabel"),
+        noteCreatedAtLabel: document.getElementById("noteCreatedAtLabel"),
+        noteTitleInput: document.getElementById("noteTitleInput"),
+        titleCharCounter: document.getElementById("titleCharCounter"),
+        titleError: document.getElementById("titleError"),
+        noteContentInput: document.getElementById("noteContentInput"),
+        btnCancelEdit: document.getElementById("btnCancelEdit"),
+        btnSaveBottom: document.getElementById("btnSaveBottom"),
+
+        deleteModal: document.getElementById("deleteModal"),
+        deleteModalMessage: document.getElementById("deleteModalMessage"),
+        btnCancelDelete: document.getElementById("btnCancelDelete"),
+        btnConfirmDelete: document.getElementById("btnConfirmDelete"),
+        toast: document.getElementById("toast")
+      };
+
+      let toastTimer = null;
+
+      /* ========================================================================
+         3. HÀM TIỆN ÍCH (Lưu trữ localStorage, định dạng thời gian, sinh ID)
+         ======================================================================== */
+
+      // Sinh mã định danh duy nhất cho mỗi ghi chú mới
+      function generateNoteId() {
+        if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+          return "note-" + crypto.randomUUID();
+        }
+        return "note-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8);
+      }
+
+      // Đọc danh sách ghi chú từ localStorage
+      function loadNotesFromStorage() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw === null) {
+            // Lần đầu mở ứng dụng: nạp ghi chú mẫu và lưu xuống localStorage
+            const initial = DEFAULT_SAMPLE_NOTES.slice();
+            saveNotesToStorage(initial);
+            return initial;
+          }
+          const parsed = JSON.parse(raw);
+          if (!Array.isArray(parsed)) {
+            return [];
+          }
+          // Chuẩn hóa dữ liệu đảm bảo đúng 4 trường: id, title, content, createdAt
+          return parsed
+            .filter(function (item) {
+              return item && typeof item.id === "string" && typeof item.title === "string";
+            })
+            .map(function (item) {
+              return {
+                id: item.id,
+                title: item.title.slice(0, MAX_TITLE_LENGTH),
+                content: typeof item.content === "string" ? item.content : "",
+                createdAt: typeof item.createdAt === "string" ? item.createdAt : new Date().toISOString()
+              };
+            });
+        } catch (error) {
+          showToast("Không thể đọc dữ liệu từ trình duyệt.");
+          return [];
+        }
+      }
+
+      // Ghi danh sách ghi chú vào localStorage
+      function saveNotesToStorage(notes) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+          return true;
+        } catch (error) {
+          showToast("Bộ nhớ trình duyệt đã đầy hoặc bị chặn.");
+          return false;
+        }
+      }
+
+      // Định dạng thời gian tạo theo chuẩn tiếng Việt dễ đọc
+      function formatDateTime(isoString) {
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) {
+          return "Không rõ thời gian";
+        }
+        const day = String(date.getDate()).padStart(2, "0");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const year = date.getFullYear();
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+        return day + "/" + month + "/" + year + " · " + hours + ":" + minutes;
+      }
+
+      // Hiển thị thông báo ngắn ở cuối màn hình
+      function showToast(message) {
+        dom.toast.textContent = message;
+        dom.toast.classList.add("is-visible");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function () {
+          dom.toast.classList.remove("is-visible");
+        }, 2400);
+      }
+
+      // Lọc ghi chú theo từ khóa (tìm trong cả tiêu đề và nội dung, không phân biệt hoa/thường)
+      function getFilteredNotes() {
+        const keyword = state.searchQuery.trim().toLowerCase();
+        const sorted = state.notes.slice().sort(function (a, b) {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+
+        if (!keyword) {
+          return sorted;
+        }
+
+        return sorted.filter(function (note) {
+          const titleMatch = note.title.toLowerCase().includes(keyword);
+          const contentMatch = note.content.toLowerCase().includes(keyword);
+          return titleMatch || contentMatch;
+        });
+      }
+
+      /* ========================================================================
+         4. CẬP NHẬT GIAO DIỆN (RENDER)
+         ======================================================================== */
+
+      // Cập nhật phần thống kê tổng số ghi chú và số kết quả tìm kiếm
+      function renderStats(filteredCount) {
+        const totalCount = state.notes.length;
+        const hasKeyword = state.searchQuery.trim().length > 0;
+
+        if (hasKeyword) {
+          dom.statsSummary.textContent =
+            "Tìm thấy " + filteredCount + " / " + totalCount + " ghi chú";
+        } else {
+          dom.statsSummary.textContent = "Tổng cộng " + totalCount + " ghi chú";
+        }
+      }
+
+      // Dựng danh sách thẻ ghi chú bên cột trái
+      function renderNotesList() {
+        const filteredNotes = getFilteredNotes();
+        renderStats(filteredNotes.length);
+
+        dom.notesList.innerHTML = "";
+
+        // Trường hợp không có dữ liệu hoặc không khớp từ khóa tìm kiếm
+        if (filteredNotes.length === 0) {
+          const emptyBox = document.createElement("div");
+          emptyBox.className = "list-empty-state";
+
+          const titleEl = document.createElement("p");
+          titleEl.className = "list-empty-title";
+
+          const descEl = document.createElement("p");
+          descEl.className = "list-empty-desc";
+
+          if (state.searchQuery.trim().length > 0) {
+            titleEl.textContent = "Không tìm thấy ghi chú phù hợp";
+            descEl.textContent =
+              "Thử tìm với từ khóa khác hoặc xóa bộ lọc để xem toàn bộ ghi chú.";
+            emptyBox.appendChild(titleEl);
+            emptyBox.appendChild(descEl);
+
+            const resetBtn = document.createElement("button");
+            resetBtn.type = "button";
+            resetBtn.className = "btn-secondary";
+            resetBtn.textContent = "Xóa từ khóa tìm kiếm";
+            resetBtn.addEventListener("click", function () {
+              dom.searchInput.value = "";
+              handleSearchChange("");
+              dom.searchInput.focus();
+            });
+            emptyBox.appendChild(resetBtn);
+          } else {
+            titleEl.textContent = "Chưa có ghi chú nào";
+            descEl.textContent =
+              "Bắt đầu lưu lại ý tưởng, dự án hoặc chủ đề quan tâm của bạn.";
+            emptyBox.appendChild(titleEl);
+            emptyBox.appendChild(descEl);
+
+            const createBtn = document.createElement("button");
+            createBtn.type = "button";
+            createBtn.className = "btn-primary";
+            createBtn.textContent = "+ Tạo ghi chú đầu tiên";
+            createBtn.addEventListener("click", startCreateNote);
+            emptyBox.appendChild(createBtn);
+          }
+
+          dom.notesList.appendChild(emptyBox);
+          return;
+        }
+
+        // Tạo phần tử cho từng ghi chú (dùng textContent để chống XSS tuyệt đối)
+        const fragment = document.createDocumentFragment();
+
+        filteredNotes.forEach(function (note) {
+          const cardBtn = document.createElement("button");
+          cardBtn.type = "button";
+          cardBtn.className = "note-card";
+          cardBtn.setAttribute("role", "listitem");
+
+          if (state.editorMode === "edit" && state.activeNoteId === note.id) {
+            cardBtn.classList.add("is-active");
+            cardBtn.setAttribute("aria-current", "true");
+          }
+
+          const titleEl = document.createElement("h3");
+          titleEl.className = "note-card-title";
+          titleEl.textContent = note.title;
+
+          const excerptEl = document.createElement("p");
+          const trimmedContent = note.content.trim();
+          if (trimmedContent.length > 0) {
+            excerptEl.className = "note-card-excerpt";
+            excerptEl.textContent = trimmedContent.replace(/\s+/g, " ");
+          } else {
+            excerptEl.className = "note-card-excerpt is-empty";
+            excerptEl.textContent = "Chưa có nội dung";
+          }
+
+          const metaEl = document.createElement("div");
+          metaEl.className = "note-card-meta tabular-nums";
+          metaEl.textContent = "Tạo lúc " + formatDateTime(note.createdAt);
+
+          cardBtn.appendChild(titleEl);
+          cardBtn.appendChild(excerptEl);
+          cardBtn.appendChild(metaEl);
+
+          cardBtn.addEventListener("click", function () {
+            openEditNote(note.id);
+          });
+
+          fragment.appendChild(cardBtn);
+        });
+
+        dom.notesList.appendChild(fragment);
+      }
+
+      // Cập nhật bộ đếm ký tự tiêu đề (tối đa 100 ký tự)
+      function updateTitleCounter() {
+        const length = dom.noteTitleInput.value.length;
+        dom.titleCharCounter.textContent = length + " / " + MAX_TITLE_LENGTH;
+        if (length >= MAX_TITLE_LENGTH) {
+          dom.titleCharCounter.classList.add("is-limit");
+        } else {
+          dom.titleCharCounter.classList.remove("is-limit");
+        }
+      }
+
+      // Xóa thông báo lỗi trường tiêu đề
+      function clearTitleError() {
+        dom.titleError.textContent = "";
+        dom.noteTitleInput.classList.remove("has-error");
+      }
+
+      // Cập nhật trạng thái hiển thị của panel chi tiết bên phải / màn hình trượt di động
+      function renderEditorPanel() {
+        if (state.editorMode === "idle") {
+          dom.detailPlaceholder.classList.remove("is-hidden");
+          dom.editorView.classList.add("is-hidden");
+          dom.detailPanel.classList.remove("is-open-mobile");
+          return;
+        }
+
+        dom.detailPlaceholder.classList.add("is-hidden");
+        dom.editorView.classList.remove("is-hidden");
+        dom.detailPanel.classList.add("is-open-mobile");
+
+        clearTitleError();
+
+        if (state.editorMode === "create") {
+          dom.noteModeLabel.textContent = "Tạo ghi chú mới";
+          dom.noteCreatedAtLabel.textContent = "";
+          dom.editorStatusText.textContent = "Ghi chú mới";
+          dom.btnDeleteNote.classList.add("is-hidden");
+          dom.btnSaveTop.textContent = "Lưu ghi chú";
+          dom.btnSaveBottom.textContent = "Lưu ghi chú";
+        } else if (state.editorMode === "edit") {
+          const currentNote = state.notes.find(function (n) {
+            return n.id === state.activeNoteId;
+          });
+          if (!currentNote) {
+            state.editorMode = "idle";
+            state.activeNoteId = null;
+            renderEditorPanel();
+            return;
+          }
+          dom.noteModeLabel.textContent = "Chỉnh sửa ghi chú";
+          dom.noteCreatedAtLabel.textContent = "Tạo lúc: " + formatDateTime(currentNote.createdAt);
+          dom.editorStatusText.textContent = state.isDirty ? "Chưa lưu thay đổi" : "Đã lưu";
+          dom.btnDeleteNote.classList.remove("is-hidden");
+          dom.btnSaveTop.textContent = "Lưu thay đổi";
+          dom.btnSaveBottom.textContent = "Lưu thay đổi";
+        }
+
+        updateTitleCounter();
+      }
+
+      /* ========================================================================
+         5. LUỒNG NGHIỆP VỤ (TẠO, SỬA, XÓA, TÌM KIẾM)
+         ======================================================================== */
+
+      // Chuyển sang chế độ tạo ghi chú mới
+      function startCreateNote() {
+        state.editorMode = "create";
+        state.activeNoteId = null;
+        state.isDirty = false;
+
+        dom.noteTitleInput.value = "";
+        dom.noteContentInput.value = "";
+
+        renderNotesList();
+        renderEditorPanel();
+
+        // Đưa con trỏ vào ô tiêu đề để gõ ngay
+        setTimeout(function () {
+          dom.noteTitleInput.focus();
+        }, 60);
+      }
+
+      // Mở một ghi chú có sẵn để xem và chỉnh sửa
+      function openEditNote(noteId) {
+        const note = state.notes.find(function (n) {
+          return n.id === noteId;
+        });
+        if (!note) {
+          return;
+        }
+
+        state.editorMode = "edit";
+        state.activeNoteId = note.id;
+        state.isDirty = false;
+
+        dom.noteTitleInput.value = note.title;
+        dom.noteContentInput.value = note.content;
+
+        renderNotesList();
+        renderEditorPanel();
+      }
+
+      // Đóng màn hình chi tiết (quay lại danh sách trên điện thoại hoặc về trạng thái chờ trên desktop)
+      function closeEditorPanel() {
+        state.editorMode = "idle";
+        state.activeNoteId = null;
+        state.isDirty = false;
+        clearTitleError();
+
+        renderNotesList();
+        renderEditorPanel();
+      }
+
+      // Lưu ghi chú (áp dụng cho cả tạo mới và cập nhật)
+      function saveCurrentNote() {
+        const rawTitle = dom.noteTitleInput.value.trim();
+        const rawContent = dom.noteContentInput.value;
+
+        // Kiểm tra tính hợp lệ của tiêu đề
+        if (rawTitle.length === 0) {
+          dom.titleError.textContent = "Vui lòng nhập tiêu đề cho ghi chú.";
+          dom.noteTitleInput.classList.add("has-error");
+          dom.noteTitleInput.focus();
+          return;
+        }
+
+        const safeTitle = rawTitle.slice(0, MAX_TITLE_LENGTH);
+
+        if (state.editorMode === "create") {
+          const newNote = {
+            id: generateNoteId(),
+            title: safeTitle,
+            content: rawContent,
+            createdAt: new Date().toISOString()
+          };
+
+          state.notes.unshift(newNote);
+          if (!saveNotesToStorage(state.notes)) {
+            return;
+          }
+
+          state.editorMode = "edit";
+          state.activeNoteId = newNote.id;
+          state.isDirty = false;
+          dom.noteTitleInput.value = newNote.title;
+
+          renderNotesList();
+          renderEditorPanel();
+          showToast("Đã tạo ghi chú mới.");
+        } else if (state.editorMode === "edit" && state.activeNoteId) {
+          const index = state.notes.findIndex(function (n) {
+            return n.id === state.activeNoteId;
+          });
+          if (index === -1) {
+            return;
+          }
+
+          state.notes[index] = {
+            id: state.notes[index].id,
+            title: safeTitle,
+            content: rawContent,
+            createdAt: state.notes[index].createdAt
+          };
+
+          if (!saveNotesToStorage(state.notes)) {
+            return;
+          }
+
+          state.isDirty = false;
+          dom.noteTitleInput.value = safeTitle;
+
+          renderNotesList();
+          renderEditorPanel();
+          showToast("Đã lưu thay đổi.");
+        }
+      }
+
+      // Mở hộp thoại xác nhận trước khi xóa
+      function openDeleteConfirm(noteId) {
+        const note = state.notes.find(function (n) {
+          return n.id === noteId;
+        });
+        if (!note) {
+          return;
+        }
+
+        state.pendingDeleteId = noteId;
+        dom.deleteModalMessage.textContent =
+          'Bạn có chắc chắn muốn xóa ghi chú "' +
+          note.title +
+          '"? Hành động này không thể hoàn tác.';
+        dom.deleteModal.classList.add("is-open");
+        dom.btnCancelDelete.focus();
+      }
+
+      function closeDeleteConfirm() {
+        state.pendingDeleteId = null;
+        dom.deleteModal.classList.remove("is-open");
+      }
+
+      // Thực hiện xóa ghi chú sau khi người dùng xác nhận
+      function confirmDeleteNote() {
+        if (!state.pendingDeleteId) {
+          return;
+        }
+
+        const deletedId = state.pendingDeleteId;
+        state.notes = state.notes.filter(function (n) {
+          return n.id !== deletedId;
+        });
+
+        saveNotesToStorage(state.notes);
+        closeDeleteConfirm();
+
+        if (state.activeNoteId === deletedId) {
+          state.editorMode = "idle";
+          state.activeNoteId = null;
+          state.isDirty = false;
+        }
+
+        renderNotesList();
+        renderEditorPanel();
+        showToast("Đã xóa ghi chú.");
+      }
+
+      // Xử lý thay đổi từ khóa tìm kiếm
+      function handleSearchChange(value) {
+        state.searchQuery = value;
+        if (value.length > 0) {
+          dom.btnClearSearch.classList.add("is-visible");
+        } else {
+          dom.btnClearSearch.classList.remove("is-visible");
+        }
+        renderNotesList();
+      }
+
+      /* ========================================================================
+         6. GẮN SỰ KIỆN TƯƠNG TÁC
+         ======================================================================== */
+      function bindEvents() {
+        dom.btnAddNote.addEventListener("click", startCreateNote);
+        dom.btnAddNoteEmpty.addEventListener("click", startCreateNote);
+
+        dom.searchInput.addEventListener("input", function (event) {
+          handleSearchChange(event.target.value);
+        });
+
+        dom.btnClearSearch.addEventListener("click", function () {
+          dom.searchInput.value = "";
+          handleSearchChange("");
+          dom.searchInput.focus();
+        });
+
+        dom.btnBackMobile.addEventListener("click", closeEditorPanel);
+        dom.btnCancelEdit.addEventListener("click", closeEditorPanel);
+
+        // Nút Lưu ở thanh công cụ trên và ở cuối form đều dùng chung hàm lưu
+        dom.btnSaveTop.addEventListener("click", saveCurrentNote);
+        dom.noteForm.addEventListener("submit", function (event) {
+          event.preventDefault();
+          saveCurrentNote();
+        });
+
+        // Theo dõi thay đổi nội dung tiêu đề & văn bản
+        dom.noteTitleInput.addEventListener("input", function () {
+          clearTitleError();
+          updateTitleCounter();
+          if (state.editorMode === "edit" && !state.isDirty) {
+            state.isDirty = true;
+            dom.editorStatusText.textContent = "Chưa lưu thay đổi";
+          }
+        });
+
+        dom.noteContentInput.addEventListener("input", function () {
+          if (state.editorMode === "edit" && !state.isDirty) {
+            state.isDirty = true;
+            dom.editorStatusText.textContent = "Chưa lưu thay đổi";
+          }
+        });
+
+        // Xử lý xóa ghi chú
+        dom.btnDeleteNote.addEventListener("click", function () {
+          if (state.activeNoteId) {
+            openDeleteConfirm(state.activeNoteId);
+          }
+        });
+
+        dom.btnCancelDelete.addEventListener("click", closeDeleteConfirm);
+        dom.btnConfirmDelete.addEventListener("click", confirmDeleteNote);
+
+        // Đóng hộp thoại xác nhận khi bấm ra vùng nền tối bên ngoài
+        dom.deleteModal.addEventListener("click", function (event) {
+          if (event.target === dom.deleteModal) {
+            closeDeleteConfirm();
+          }
+        });
+
+        // Hỗ trợ phím tắt tiện lợi: Esc đóng hộp thoại, Ctrl/Cmd + S lưu nhanh
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape" && dom.deleteModal.classList.contains("is-open")) {
+            closeDeleteConfirm();
+            return;
+          }
+
+          if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+            if (state.editorMode === "create" || state.editorMode === "edit") {
+              event.preventDefault();
+              saveCurrentNote();
+            }
+          }
+        });
+      }
+
+      /* ========================================================================
+         7. KHỞI TẠO ỨNG DỤNG
+         ======================================================================== */
+      function init() {
+        state.notes = loadNotesFromStorage();
+        bindEvents();
+        renderNotesList();
+        renderEditorPanel();
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
